@@ -5,7 +5,8 @@
 
 #define TFT_WIDTH       240
 #define TFT_HEIGHT      320
-
+#define TFT_BLACK 0x0000
+#define TFT_WHITE 0xFFFF
 /*
  * RGB565 colors
  */
@@ -37,5 +38,19 @@ void tft_draw_rectangle(
     uint16_t height,
     uint16_t color
 );
+void tft_fill_rectangle(
+    uint16_t x,
+    uint16_t y,
+    uint16_t width,
+    uint16_t height,
+    uint16_t color
+);
 
+void tft_draw_number(
+    uint16_t x,
+    uint16_t y,
+    int value,
+    uint16_t color,
+    uint16_t background
+);
 #endif

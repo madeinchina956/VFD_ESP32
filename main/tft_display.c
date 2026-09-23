@@ -16,6 +16,8 @@
 
 static spi_device_handle_t tft_spi;
 
+
+// Send a command to the TFT
 void tft_display_write_command(uint8_t command)
 {
     gpio_set_level(TFT_DC, 0);
@@ -25,10 +27,20 @@ void tft_display_write_command(uint8_t command)
         .tx_buffer = &command
     };
 
-    ESP_ERROR_CHECK(spi_device_transmit(tft_spi, &transaction));
+    ESP_ERROR_CHECK(
+        spi_device_transmit(
+            tft_spi,
+            &transaction
+        )
+    );
 }
 
-void tft_display_write_data(const uint8_t *data, int length)
+
+// Send data to the TFT
+void tft_display_write_data(
+    const uint8_t *data,
+    int length
+)
 {
     gpio_set_level(TFT_DC, 1);
 
@@ -37,16 +49,25 @@ void tft_display_write_data(const uint8_t *data, int length)
         .tx_buffer = data
     };
 
-    ESP_ERROR_CHECK(spi_device_transmit(tft_spi, &transaction));
+    ESP_ERROR_CHECK(
+        spi_device_transmit(
+            tft_spi,
+            &transaction
+        )
+    );
 }
 
+
+// Initialize TFT display
 void tft_display_init(void)
 {
+    // Configure TFT control pins
     gpio_config_t io_config = {
         .pin_bit_mask =
             (1ULL << TFT_CS) |
             (1ULL << TFT_DC) |
             (1ULL << TFT_RST),
+
         .mode = GPIO_MODE_OUTPUT
     };
 
@@ -54,6 +75,8 @@ void tft_display_init(void)
         gpio_config(&io_config)
     );
 
+
+    // Configure SPI bus
     spi_bus_config_t bus_config = {
         .mosi_io_num = TFT_MOSI,
         .miso_io_num = -1,
@@ -63,6 +86,16 @@ void tft_display_init(void)
         .max_transfer_sz = 4096
     };
 
+    ESP_ERROR_CHECK(
+        spi_bus_initialize(
+            TFT_SPI_HOST,
+            &bus_config,
+            SPI_DMA_CH_AUTO
+        )
+    );
+
+
+    // Configure TFT SPI device
     spi_device_interface_config_t device_config = {
         .clock_speed_hz = 1000000,
         .mode = 0,
@@ -71,12 +104,13 @@ void tft_display_init(void)
     };
 
     ESP_ERROR_CHECK(
-        spi_bus_initialize(TFT_SPI_HOST, &bus_config, SPI_DMA_CH_AUTO)
+        spi_bus_add_device(
+            TFT_SPI_HOST,
+            &device_config,
+            &tft_spi
+        )
     );
 
-    ESP_ERROR_CHECK(
-        spi_bus_add_device(TFT_SPI_HOST, &device_config, &tft_spi)
-    );
 
     // Hardware reset
     gpio_set_level(TFT_RST, 0);
@@ -89,23 +123,31 @@ void tft_display_init(void)
     tft_display_write_command(0x01);
     vTaskDelay(pdMS_TO_TICKS(150));
 
-    // Exit sleep
+    // Exit sleep mode
     tft_display_write_command(0x11);
     vTaskDelay(pdMS_TO_TICKS(150));
 
-    // RGB565
+    // Set RGB565 color format
     tft_display_write_command(0x3A);
 
     uint8_t pixel_format = 0x55;
-    tft_display_write_data(&pixel_format, 1);
 
-    // Screen orientation
+    tft_display_write_data(
+        &pixel_format,
+        1
+    );
+
+    // Set screen orientation
     tft_display_write_command(0x36);
 
     uint8_t memory_access = 0x48;
-    tft_display_write_data(&memory_access, 1);
 
-    // Display ON
+    tft_display_write_data(
+        &memory_access,
+        1
+    );
+
+    // Turn display on
     tft_display_write_command(0x29);
     vTaskDelay(pdMS_TO_TICKS(100));
 }

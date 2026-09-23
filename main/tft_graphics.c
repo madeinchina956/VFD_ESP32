@@ -75,7 +75,7 @@ void tft_draw_pixel(
     tft_display_write_data(pixel, 2);
 }
 
-void tft_draw_rectangle(
+void tft_fill_rectangle(
     uint16_t x,
     uint16_t y,
     uint16_t width,
@@ -86,15 +86,245 @@ void tft_draw_rectangle(
     if (width == 0 || height == 0)
         return;
 
-    for (uint16_t i = x; i < x + width; i++)
+    if (x >= TFT_WIDTH || y >= TFT_HEIGHT)
+        return;
+
+    if (x + width > TFT_WIDTH)
+        width = TFT_WIDTH - x;
+
+    if (y + height > TFT_HEIGHT)
+        height = TFT_HEIGHT - y;
+
+    tft_set_window(
+        x,
+        y,
+        x + width - 1,
+        y + height - 1
+    );
+
+    uint8_t pixel[2] = {
+        color >> 8,
+        color & 0xFF
+    };
+
+    for (uint32_t i = 0; i < width * height; i++)
     {
-        tft_draw_pixel(i, y, color);
-        tft_draw_pixel(i, y + height - 1, color);
+        tft_display_write_data(pixel, 2);
+    }
+}
+void tft_draw_rectangle(
+    uint16_t x,
+    uint16_t y,
+    uint16_t width,
+    uint16_t height,
+    uint16_t color
+)
+{
+    // Top
+    tft_fill_rectangle(
+        x,
+        y,
+        width,
+        1,
+        color
+    );
+
+    // Bottom
+    tft_fill_rectangle(
+        x,
+        y + height - 1,
+        width,
+        1,
+        color
+    );
+
+    // Left
+    tft_fill_rectangle(
+        x,
+        y,
+        1,
+        height,
+        color
+    );
+
+    // Right
+    tft_fill_rectangle(
+        x + width - 1,
+        y,
+        1,
+        height,
+        color
+    );
+}
+// Seven-segment patterns for digits 0-9
+static const uint8_t digit_segments[10] =
+{
+    0x3F, // 0
+    0x06, // 1
+    0x5B, // 2
+    0x4F, // 3
+    0x66, // 4
+    0x6D, // 5
+    0x7D, // 6
+    0x07, // 7
+    0x7F, // 8
+    0x6F  // 9
+};
+
+// Draw one digit
+static void tft_draw_digit(
+    uint16_t x,
+    uint16_t y,
+    int digit,
+    uint16_t color
+)
+{
+    if (digit < 0 || digit > 9)
+        return;
+
+    uint8_t segments = digit_segments[digit];
+
+    int width = 24;
+    int height = 40;
+    int thick = 4;
+
+    // Top
+    if (segments & 0x01)
+        tft_fill_rectangle(
+            x + thick,
+            y,
+            width - (2 * thick),
+            thick,
+            color
+        );
+
+    // Upper right
+    if (segments & 0x02)
+        tft_fill_rectangle(
+            x + width - thick,
+            y + thick,
+            thick,
+            height / 2 - thick,
+            color
+        );
+
+    // Lower right
+    if (segments & 0x04)
+        tft_fill_rectangle(
+            x + width - thick,
+            y + height / 2,
+            thick,
+            height / 2 - thick,
+            color
+        );
+
+    // Bottom
+    if (segments & 0x08)
+        tft_fill_rectangle(
+            x + thick,
+            y + height - thick,
+            width - (2 * thick),
+            thick,
+            color
+        );
+
+    // Lower left
+    if (segments & 0x10)
+        tft_fill_rectangle(
+            x,
+            y + height / 2,
+            thick,
+            height / 2 - thick,
+            color
+        );
+
+    // Upper left
+    if (segments & 0x20)
+        tft_fill_rectangle(
+            x,
+            y + thick,
+            thick,
+            height / 2 - thick,
+            color
+        );
+
+    // Middle
+    if (segments & 0x40)
+        tft_fill_rectangle(
+            x + thick,
+            y + height / 2 - 2,
+            width - (2 * thick),
+            thick,
+            color
+        );
+}
+// Draw an integer on the screen
+void tft_draw_number(
+    uint16_t x,
+    uint16_t y,
+    int value,
+    uint16_t color,
+    uint16_t background
+)
+{
+    // Clear old number
+    tft_fill_rectangle(
+        x,
+        y,
+        150,
+        50,
+        background
+    );
+
+    // Draw negative sign
+    if (value < 0)
+    {
+        tft_fill_rectangle(
+            x,
+            y + 18,
+            16,
+            4,
+            color
+        );
+
+        x += 22;
+        value = -value;
     }
 
-    for (uint16_t i = y; i < y + height; i++)
+    // Display zero
+    if (value == 0)
     {
-        tft_draw_pixel(x, i, color);
-        tft_draw_pixel(x + width - 1, i, color);
+        tft_draw_digit(
+            x,
+            y,
+            0,
+            color
+        );
+
+        return;
+    }
+
+    int digits[10];
+    int count = 0;
+
+    // Break number into digits
+    while (value > 0 && count < 10)
+    {
+        digits[count] = value % 10;
+        value /= 10;
+        count++;
+    }
+
+    // Draw digits left to right
+    for (int i = count - 1; i >= 0; i--)
+    {
+        tft_draw_digit(
+            x,
+            y,
+            digits[i],
+            color
+        );
+
+        x += 32;
     }
 }
