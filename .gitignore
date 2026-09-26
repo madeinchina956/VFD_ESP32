@@ -51,4 +51,5 @@ app.*.map.json
 # iOS generated files
 /ios/Flutter/ephemeral/
 /ios/Flutter/Generated.xcconfig
-/ios/Flutter/flutter_export_environment.sh
+# Old Android backup
+/android_old/
