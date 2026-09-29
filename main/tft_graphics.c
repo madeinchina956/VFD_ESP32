@@ -1,6 +1,8 @@
 #include "tft_graphics.h"
 #include "tft_display.h"
 
+
+// Set the area of the TFT that will receive pixel data
 static void tft_set_window(
     uint16_t x1,
     uint16_t y1,
@@ -10,7 +12,7 @@ static void tft_set_window(
 {
     uint8_t data[4];
 
-    // X coordinates
+    // Set X range
     tft_display_write_command(0x2A);
 
     data[0] = x1 >> 8;
@@ -20,7 +22,7 @@ static void tft_set_window(
 
     tft_display_write_data(data, 4);
 
-    // Y coordinates
+    // Set Y range
     tft_display_write_command(0x2B);
 
     data[0] = y1 >> 8;
@@ -30,20 +32,14 @@ static void tft_set_window(
 
     tft_display_write_data(data, 4);
 
-    // Memory write
+    // Start memory write
     tft_display_write_command(0x2C);
 }
 
+
+// Fill the entire screen with one color
 void tft_fill_screen(uint16_t color)
 {
-    uint8_t row[TFT_WIDTH * 2];
-
-    for (int x = 0; x < TFT_WIDTH; x++)
-    {
-        row[x * 2] = color >> 8;
-        row[x * 2 + 1] = color & 0xFF;
-    }
-
     tft_set_window(
         0,
         0,
@@ -51,12 +47,14 @@ void tft_fill_screen(uint16_t color)
         TFT_HEIGHT - 1
     );
 
-    for (int y = 0; y < TFT_HEIGHT; y++)
-    {
-        tft_display_write_data(row, sizeof(row));
-    }
+    tft_display_write_color_repeat(
+        color,
+        TFT_WIDTH * TFT_HEIGHT
+    );
 }
 
+
+// Draw one pixel
 void tft_draw_pixel(
     uint16_t x,
     uint16_t y,
@@ -72,9 +70,15 @@ void tft_draw_pixel(
     };
 
     tft_set_window(x, y, x, y);
-    tft_display_write_data(pixel, 2);
+
+    tft_display_write_data(
+        pixel,
+        2
+    );
 }
 
+
+// Fill a rectangular area with one color
 void tft_fill_rectangle(
     uint16_t x,
     uint16_t y,
@@ -89,6 +93,7 @@ void tft_fill_rectangle(
     if (x >= TFT_WIDTH || y >= TFT_HEIGHT)
         return;
 
+    // Keep rectangle inside screen boundaries
     if (x + width > TFT_WIDTH)
         width = TFT_WIDTH - x;
 
@@ -102,16 +107,15 @@ void tft_fill_rectangle(
         y + height - 1
     );
 
-    uint8_t pixel[2] = {
-        color >> 8,
-        color & 0xFF
-    };
-
-    for (uint32_t i = 0; i < width * height; i++)
-    {
-        tft_display_write_data(pixel, 2);
-    }
+    // Send the color in groups instead of one pixel at a time
+    tft_display_write_color_repeat(
+        color,
+        width * height
+    );
 }
+
+
+// Draw the outline of a rectangle
 void tft_draw_rectangle(
     uint16_t x,
     uint16_t y,
@@ -120,6 +124,9 @@ void tft_draw_rectangle(
     uint16_t color
 )
 {
+    if (width == 0 || height == 0)
+        return;
+
     // Top
     tft_fill_rectangle(
         x,
@@ -156,6 +163,8 @@ void tft_draw_rectangle(
         color
     );
 }
+
+
 // Seven-segment patterns for digits 0-9
 static const uint8_t digit_segments[10] =
 {
@@ -171,7 +180,8 @@ static const uint8_t digit_segments[10] =
     0x6F  // 9
 };
 
-// Draw one digit
+
+// Draw one seven-segment digit
 static void tft_draw_digit(
     uint16_t x,
     uint16_t y,
@@ -182,7 +192,8 @@ static void tft_draw_digit(
     if (digit < 0 || digit > 9)
         return;
 
-    uint8_t segments = digit_segments[digit];
+    uint8_t segments =
+        digit_segments[digit];
 
     int width = 24;
     int height = 40;
@@ -258,7 +269,9 @@ static void tft_draw_digit(
             color
         );
 }
-// Draw an integer on the screen
+
+
+// Draw an integer using seven-segment digits
 void tft_draw_number(
     uint16_t x,
     uint16_t y,
@@ -267,7 +280,7 @@ void tft_draw_number(
     uint16_t background
 )
 {
-    // Clear old number
+    // Clear the previous number
     tft_fill_rectangle(
         x,
         y,
@@ -307,15 +320,17 @@ void tft_draw_number(
     int digits[10];
     int count = 0;
 
-    // Break number into digits
+    // Separate number into digits
     while (value > 0 && count < 10)
     {
-        digits[count] = value % 10;
+        digits[count] =
+            value % 10;
+
         value /= 10;
         count++;
     }
 
-    // Draw digits left to right
+    // Draw digits from left to right
     for (int i = count - 1; i >= 0; i--)
     {
         tft_draw_digit(
@@ -324,7 +339,6 @@ void tft_draw_number(
             digits[i],
             color
         );
-
         x += 32;
     }
 }

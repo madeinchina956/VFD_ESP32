@@ -3,27 +3,27 @@
 
 #include <stdint.h>
 
-#define TFT_WIDTH       240
-#define TFT_HEIGHT      320
-#define TFT_BLACK 0x0000
-#define TFT_WHITE 0xFFFF
-/*
- * RGB565 colors
- */
-#define COLOR_BLACK         0x0000
-#define COLOR_WHITE         0xFFFF
-#define COLOR_BLUE          0x001F
-#define COLOR_GREEN         0x07E0
-#define COLOR_RED           0xF800
-#define COLOR_YELLOW        0xFFE0
-#define COLOR_DARK_BLUE     0x0010
+// TFT dimensions
+#define TFT_WIDTH   240
+#define TFT_HEIGHT  320
+
+// RGB565 colors
+#define COLOR_BLACK      0x0000
+#define COLOR_WHITE      0xFFFF
+#define COLOR_BLUE       0x001F
+#define COLOR_GREEN      0x07E0
+#define COLOR_RED        0xF800
+#define COLOR_YELLOW     0xFFE0
+#define COLOR_DARK_BLUE  0x0010
 
 
+// Fill the entire screen
 void tft_fill_screen(
     uint16_t color
 );
 
 
+// Draw one pixel
 void tft_draw_pixel(
     uint16_t x,
     uint16_t y,
@@ -31,6 +31,7 @@ void tft_draw_pixel(
 );
 
 
+// Draw a rectangle outline
 void tft_draw_rectangle(
     uint16_t x,
     uint16_t y,
@@ -38,6 +39,9 @@ void tft_draw_rectangle(
     uint16_t height,
     uint16_t color
 );
+
+
+// Draw a filled rectangle
 void tft_fill_rectangle(
     uint16_t x,
     uint16_t y,
@@ -46,6 +50,8 @@ void tft_fill_rectangle(
     uint16_t color
 );
 
+
+// Draw an integer using seven-segment digits
 void tft_draw_number(
     uint16_t x,
     uint16_t y,
