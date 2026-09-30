@@ -12,6 +12,7 @@ void ui_control_draw(
     bool editing
 );
 
+
 // Update selection without redrawing screen
 void ui_control_update_selection(
     int old_item,
@@ -22,6 +23,7 @@ void ui_control_update_selection(
     bool editing
 );
 
+
 // Redraw one Control item
 void ui_control_update_item(
     int item,
@@ -31,4 +33,5 @@ void ui_control_update_item(
     bool running,
     bool editing
 );
+
 #endif

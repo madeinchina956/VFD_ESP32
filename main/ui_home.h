@@ -1,6 +1,6 @@
 #ifndef UI_HOME_H
 #define UI_HOME_H
-
+#include "ui_home.h"
 // Draw complete home menu
 void ui_home_draw(
     int selected_item

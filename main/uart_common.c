@@ -6,15 +6,20 @@
 
 #include <string.h>
 
+// UART1 configuration
 #define UART_PORT       UART_NUM_1
-#define UART_TX_PIN     GPIO_NUM_26
-#define UART_RX_PIN     GPIO_NUM_27
+
+// Match current ESP32 schematic
+#define UART_TX_PIN     GPIO_NUM_27   // ESP32 TX -> dsPIC RX
+#define UART_RX_PIN     GPIO_NUM_26   // ESP32 RX <- dsPIC TX
+
 #define UART_BAUD_RATE  115200
 
 static const char *TAG = "UART_TEST";
 
 void uart_loopback_test(void)
 {
+    // UART settings
     const uart_config_t uart_config = {
         .baud_rate = UART_BAUD_RATE,
         .data_bits = UART_DATA_8_BITS,
@@ -34,7 +39,7 @@ void uart_loopback_test(void)
         0
     );
 
-    // Configure UART settings
+    // Apply UART settings
     uart_param_config(
         UART_PORT,
         &uart_config
@@ -50,9 +55,9 @@ void uart_loopback_test(void)
     );
 
     // Test message
-    const char *message =
-        "Hello from ESP32!\r\n";
+    const char *message = "Hello from ESP32!\r\n";
 
+    // Send message
     uart_write_bytes(
         UART_PORT,
         message,
@@ -61,7 +66,7 @@ void uart_loopback_test(void)
 
     uint8_t data[128];
 
-    // Wait for looped-back data
+    // Wait for incoming UART data
     int length = uart_read_bytes(
         UART_PORT,
         data,

@@ -3,11 +3,13 @@ idf_component_register(
     SRCS
         "main.c"
         "wifi.c"
-        "uart_test.c"
+        "uart_common.c"        
         "tft_display.c"
         "tft_graphics.c"
         "tft_font.c"
         "encoder.c"
+        "buttons.c"
+        "control_source.c"
         "ui_common.c"
         "ui_home.c"
         "ui_control.c"
@@ -15,6 +17,7 @@ idf_component_register(
         "ui_faults.c"
         "ui_settings.c"
         "ui_task.c"
+
     INCLUDE_DIRS
         "."
 )

@@ -7,22 +7,21 @@
 #include "tft_font.h"
 
 
+// Selectable Control menu positions
 static const uint16_t item_y[] =
 {
-    60,
-    120,
-    180,
-    240
+    60,     // Speed
+    120,    // Direction
+    180     // Back
 };
 
 
-// Draw one Control option
+// Draw one selectable Control option
 static void draw_item(
     int item,
     bool selected,
     int rpm,
     bool forward,
-    bool running,
     bool editing
 )
 {
@@ -35,9 +34,11 @@ static void draw_item(
         selected ? COLOR_YELLOW : COLOR_WHITE;
 
 
-    // Green border indicates active editing
+    // Green border means RPM is being edited
     if (item == 0 && editing)
+    {
         border = COLOR_GREEN;
+    }
 
 
     tft_fill_rectangle(
@@ -57,6 +58,7 @@ static void draw_item(
     );
 
 
+    // Show selection arrow
     if (selected)
     {
         tft_draw_text(
@@ -69,7 +71,11 @@ static void draw_item(
     }
 
 
-    // Speed
+    /*
+     * -------------------------
+     * Speed
+     * -------------------------
+     */
     if (item == 0)
     {
         tft_draw_text(
@@ -97,7 +103,11 @@ static void draw_item(
     }
 
 
-    // Direction
+    /*
+     * -------------------------
+     * Direction
+     * -------------------------
+     */
     else if (item == 1)
     {
         tft_draw_text(
@@ -118,29 +128,12 @@ static void draw_item(
     }
 
 
-    // Run / Stop
+    /*
+     * -------------------------
+     * Back
+     * -------------------------
+     */
     else if (item == 2)
-    {
-        tft_draw_text(
-            "MOTOR",
-            40,
-            item_y[item] + 15,
-            1,
-            COLOR_WHITE
-        );
-
-        tft_draw_text(
-            running ? "RUN" : "STOP",
-            140,
-            item_y[item] + 15,
-            1,
-            running ? COLOR_GREEN : COLOR_RED
-        );
-    }
-
-
-    // Back
-    else
     {
         tft_draw_text(
             "BACK",
@@ -150,6 +143,48 @@ static void draw_item(
             COLOR_WHITE
         );
     }
+}
+
+
+// Draw read-only motor status
+static void draw_motor_status(
+    bool running
+)
+{
+    // Status box is NOT selectable by encoder
+    tft_fill_rectangle(
+        10,
+        240,
+        220,
+        40,
+        COLOR_DARK_BLUE
+    );
+
+    tft_draw_rectangle(
+        10,
+        240,
+        220,
+        40,
+        COLOR_WHITE
+    );
+
+
+    tft_draw_text(
+        "STATUS",
+        25,
+        255,
+        1,
+        COLOR_WHITE
+    );
+
+
+    tft_draw_text(
+        running ? "RUN" : "STOP",
+        140,
+        255,
+        1,
+        running ? COLOR_GREEN : COLOR_RED
+    );
 }
 
 
@@ -171,17 +206,23 @@ void ui_control_draw(
     );
 
 
-    for (int i = 0; i < 4; i++)
+    // Only 3 selectable encoder items
+    for (int i = 0; i < 3; i++)
     {
         draw_item(
             i,
             i == selected_item,
             rpm,
             forward,
-            running,
             editing
         );
     }
+
+
+    // Motor state is display-only
+    draw_motor_status(
+        running
+    );
 
 
     ui_draw_footer(
@@ -190,7 +231,7 @@ void ui_control_draw(
 }
 
 
-// Update only old and new selections
+// Update old and new encoder selections
 void ui_control_update_selection(
     int old_item,
     int new_item,
@@ -205,7 +246,6 @@ void ui_control_update_selection(
         false,
         rpm,
         forward,
-        running,
         editing
     );
 
@@ -214,13 +254,12 @@ void ui_control_update_selection(
         true,
         rpm,
         forward,
-        running,
         editing
     );
 }
 
 
-// Redraw one item after its value changes
+// Redraw one Control item
 void ui_control_update_item(
     int item,
     bool selected,
@@ -235,7 +274,6 @@ void ui_control_update_item(
         selected,
         rpm,
         forward,
-        running,
         editing
     );
 }

@@ -1,11 +1,134 @@
 #include "ui_settings.h"
 
+#include "control_source.h"
 #include "ui_common.h"
 #include "tft_graphics.h"
 #include "tft_font.h"
 
 
-void ui_settings_draw(void)
+// Draw Control Source option
+static void draw_control_source(bool selected)
+{
+    uint16_t background =
+        selected ? COLOR_BLUE : COLOR_DARK_BLUE;
+
+    uint16_t border =
+        selected ? COLOR_YELLOW : COLOR_WHITE;
+
+
+    tft_fill_rectangle(
+        10,
+        65,
+        220,
+        50,
+        background
+    );
+
+    tft_draw_rectangle(
+        10,
+        65,
+        220,
+        50,
+        border
+    );
+
+
+    if (selected)
+    {
+        tft_draw_text(
+            ">",
+            20,
+            82,
+            1,
+            COLOR_YELLOW
+        );
+    }
+
+
+    tft_draw_text(
+        "SOURCE",
+        40,
+        80,
+        1,
+        COLOR_WHITE
+    );
+
+
+    // Show current control source
+    if (control_source_local_allowed())
+    {
+        tft_draw_text(
+            "LOCAL",
+            140,
+            80,
+            1,
+            COLOR_GREEN
+        );
+    }
+    else
+    {
+        tft_draw_text(
+            "REMOTE",
+            140,
+            80,
+            1,
+            COLOR_YELLOW
+        );
+    }
+}
+
+
+// Draw Back option
+static void draw_back(bool selected)
+{
+    uint16_t background =
+        selected ? COLOR_BLUE : COLOR_DARK_BLUE;
+
+    uint16_t border =
+        selected ? COLOR_YELLOW : COLOR_WHITE;
+
+
+    tft_fill_rectangle(
+        10,
+        230,
+        220,
+        40,
+        background
+    );
+
+    tft_draw_rectangle(
+        10,
+        230,
+        220,
+        40,
+        border
+    );
+
+
+    if (selected)
+    {
+        tft_draw_text(
+            ">",
+            20,
+            245,
+            1,
+            COLOR_YELLOW
+        );
+    }
+
+
+    tft_draw_text(
+        "BACK",
+        90,
+        245,
+        1,
+        COLOR_WHITE
+    );
+}
+
+
+// Draw complete Settings screen
+void ui_settings_draw(int selected_item)
 {
     tft_fill_screen(
         COLOR_DARK_BLUE
@@ -16,59 +139,89 @@ void ui_settings_draw(void)
     );
 
 
-    // Wi-Fi
-    tft_draw_rectangle(
-        10,
-        70,
-        220,
-        50,
-        COLOR_WHITE
+    // Control source
+    draw_control_source(
+        selected_item == 0
     );
 
+
+    // Wi-Fi information
     tft_draw_text(
         "WIFI",
         20,
-        85,
-        2,
+        130,
+        1,
         COLOR_WHITE
     );
 
+    tft_draw_text(
+        "ESP32 AP",
+        120,
+        130,
+        1,
+        COLOR_GREEN
+    );
 
-    // ESP32 controller address
-    tft_draw_rectangle(
-        10,
-        140,
-        220,
-        70,
-        COLOR_WHITE);
 
+    // Controller IP
     tft_draw_text(
         "CONTROLLER IP",
         20,
-        150,
+        165,
         1,
-        COLOR_WHITE);
+        COLOR_WHITE
+    );
 
     tft_draw_text(
         "192.168.4.1",
         20,
-        180,
+        190,
         2,
-        COLOR_YELLOW);
+        COLOR_YELLOW
+    );
 
-    // Controller type
-    tft_draw_rectangle(
-        10,
-        230,
-        220,
-        45,
-        COLOR_WHITE);
-    tft_draw_text(
-        "ESP32 WROOM",
-        45,
-        245,
-        2,
-        COLOR_GREEN);
+
+    // Back
+    draw_back(
+        selected_item == 1
+    );
+
+
     ui_draw_footer(
-        "PRESS:BACK");
+        "ROTATE:MOVE PRESS:SET"
+    );
+}
+
+
+// Update highlighted Settings item
+void ui_settings_update_selection(
+    int old_item,
+    int new_item
+)
+{
+    if (old_item == 0)
+    {
+        draw_control_source(false);
+    }
+    else
+    {
+        draw_back(false);
+    }
+
+
+    if (new_item == 0)
+    {
+        draw_control_source(true);
+    }
+    else
+    {
+        draw_back(true);
+    }
+}
+
+
+// Refresh Control Source value
+void ui_settings_update_source(bool selected)
+{
+    draw_control_source(selected);
 }

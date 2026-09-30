@@ -128,8 +128,8 @@ static void encoder_task(void *arg)
         }
 
 
-        vTaskDelay(pdMS_TO_TICKS(2));
-    }
+// Allow other FreeRTOS tasks to run
+    vTaskDelay(pdMS_TO_TICKS(10));    }
 }
 
 
