@@ -1,13 +1,10 @@
 #include "buttons.h"
+#include "board_pins.h"
 
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_timer.h"
-
-// Match schematic
-#define START_BUTTON GPIO_NUM_34
-#define STOP_BUTTON  GPIO_NUM_35
 
 // Button press events
 static volatile bool start_event = false;

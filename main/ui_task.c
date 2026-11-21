@@ -321,10 +321,12 @@ static void check_motor_buttons(void)
     }
 
 
-    // Refresh status if Control screen is open
+      // Refresh status if Control screen is open
     if (current_screen == VFD_SCREEN_CONTROL)
-        draw_control();
-}
+    {
+        ui_control_update_status(running);
+    }
+} // End of check_motor_buttons()
 
 
 // Handle encoder rotation
@@ -381,25 +383,32 @@ static void ui_task(void *arg)
 
     ui_home_draw(home_selection);
 
-
     while (1)
     {
-        int encoder_value = encoder_get_value();
+        int current_encoder_value = encoder_get_value();
 
+        // Detect encoder movement
+        int encoder_change =
+            current_encoder_value - last_encoder_value;
 
-        // Encoder rotation
-        if (encoder_value != last_encoder_value)
+        if (encoder_change != 0)
         {
             int direction =
-                (encoder_value > last_encoder_value)
-                ? 1
-                : -1;
+                (encoder_change > 0) ? 1 : -1;
 
-            handle_rotation(direction);
+            int steps =
+                (encoder_change > 0)
+                ? encoder_change
+                : -encoder_change;
 
-            last_encoder_value = encoder_value;
+            // Process all detected encoder steps
+            for (int i = 0; i < steps; i++)
+            {
+                handle_rotation(direction);
+            }
+
+            last_encoder_value = current_encoder_value;
         }
-
 
         // Encoder push button
         if (encoder_button_pressed())
@@ -407,17 +416,13 @@ static void ui_task(void *arg)
             handle_encoder_press();
         }
 
-
         // Physical START / STOP
         check_motor_buttons();
 
-
-        vTaskDelay(
-            pdMS_TO_TICKS(10)
-        );
+        // Faster UI polling
+        vTaskDelay(pdMS_TO_TICKS(2));
     }
 }
-
 
 // Start UI task
 void ui_task_start(void)

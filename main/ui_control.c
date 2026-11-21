@@ -147,9 +147,9 @@ static void draw_item(
 
 
 // Draw read-only motor status
-static void draw_motor_status(
-    bool running
-)
+
+ // Draw read-only motor status
+static void draw_motor_status(bool running)
 {
     // Status box is NOT selectable by encoder
     tft_fill_rectangle(
@@ -168,7 +168,6 @@ static void draw_motor_status(
         COLOR_WHITE
     );
 
-
     tft_draw_text(
         "STATUS",
         25,
@@ -177,7 +176,6 @@ static void draw_motor_status(
         COLOR_WHITE
     );
 
-
     tft_draw_text(
         running ? "RUN" : "STOP",
         140,
@@ -185,6 +183,13 @@ static void draw_motor_status(
         1,
         running ? COLOR_GREEN : COLOR_RED
     );
+}
+
+
+// Public function to update only motor status
+void ui_control_update_status(bool running)
+{
+    draw_motor_status(running);
 }
 
 

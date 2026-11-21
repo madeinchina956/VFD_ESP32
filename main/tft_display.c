@@ -1,4 +1,5 @@
 #include "tft_display.h"
+#include "board_pins.h"
 
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
@@ -7,19 +8,8 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-
-// SPI peripheral used for the TFT
+// SPI peripheral used for TFT
 #define TFT_SPI_HOST SPI2_HOST
-
-
-// TFT pin assignments from PCB schematic
-#define TFT_MOSI  GPIO_NUM_23
-#define TFT_MISO  GPIO_NUM_19
-#define TFT_SCLK  GPIO_NUM_18
-#define TFT_CS    GPIO_NUM_21
-#define TFT_DC    GPIO_NUM_22
-#define TFT_RST   GPIO_NUM_17
-
 
 // SPI device handle
 static spi_device_handle_t tft_spi;
@@ -154,17 +144,14 @@ void tft_display_init(void)
     // Configure SPI bus
     spi_bus_config_t bus_config = {
 
-        // ESP32 GPIO23 -> TFT MOSI
-        .mosi_io_num =
-            TFT_MOSI,
+        // ESP32 GPIO21 -> TFT MOSI
+        .mosi_io_num = TFT_MOSI,
 
-        // TFT MISO -> ESP32 GPIO19
-        .miso_io_num =
-            TFT_MISO,
+        // TFT MISO -> ESP32 GPIO23
+        .miso_io_num = TFT_MISO,
 
-        // ESP32 GPIO18 -> TFT SCK
-        .sclk_io_num =
-            TFT_SCLK,
+        // ESP32 GPIO18d -> TFT SCK
+        .sclk_io_num = TFT_SCLK,
 
         .quadwp_io_num =
             -1,
@@ -189,10 +176,8 @@ void tft_display_init(void)
     // Configure TFT SPI device
     spi_device_interface_config_t device_config = {
 
-        // Start at 1 MHz for reliable testing
-        .clock_speed_hz =
-            1000000,
-
+        // Start at 10 MHz for reliable testing
+        .clock_speed_hz = 10000000,
         // ILI9341 uses SPI Mode 0
         .mode =
             0,

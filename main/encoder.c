@@ -1,13 +1,15 @@
 #include "encoder.h"
+#include "board_pins.h"
 
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_timer.h"
 
-#define ENCODER_A       GPIO_NUM_32
-#define ENCODER_B       GPIO_NUM_33
-#define ENCODER_BUTTON  GPIO_NUM_25
+// Match PCB schematic
+#define ENCODER_A       ENCODER_CLK
+#define ENCODER_B       ENCODER_DT
+#define ENCODER_BUTTON  ENCODER_SW
 
 // Encoder position in detents
 static volatile int encoder_value = 0;
@@ -129,7 +131,7 @@ static void encoder_task(void *arg)
 
 
 // Allow other FreeRTOS tasks to run
-    vTaskDelay(pdMS_TO_TICKS(10));    }
+    vTaskDelay(pdMS_TO_TICKS(2));    }
 }
 
 

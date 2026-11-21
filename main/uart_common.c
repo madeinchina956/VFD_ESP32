@@ -1,3 +1,6 @@
+
+#include "board_pins.h"
+
 #include "driver/uart.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
@@ -9,9 +12,9 @@
 // UART1 configuration
 #define UART_PORT       UART_NUM_1
 
-// Match current ESP32 schematic
-#define UART_TX_PIN     GPIO_NUM_27   // ESP32 TX -> dsPIC RX
-#define UART_RX_PIN     GPIO_NUM_26   // ESP32 RX <- dsPIC TX
+// Match actual PCB schematic
+#define UART_TX_PIN     DSPIC_UART_TX
+#define UART_RX_PIN     DSPIC_UART_RX
 
 #define UART_BAUD_RATE  115200
 
