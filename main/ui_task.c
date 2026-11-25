@@ -420,7 +420,7 @@ static void ui_task(void *arg)
         check_motor_buttons();
 
         // Faster UI polling
-        vTaskDelay(pdMS_TO_TICKS(2));
+        vTaskDelay(1);
     }
 }
 

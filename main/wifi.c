@@ -70,5 +70,7 @@ void wifi_init(void)
 
     ESP_LOGI(TAG, "Wi-Fi Access Point started");
     ESP_LOGI(TAG, "SSID: %s", WIFI_SSID);
-    ESP_LOGI(TAG, "Password: %s", WIFI_PASSWORD);
+    ESP_LOGI(TAG, "Controller IP: 192.168.4.1");
+    ESP_LOGI(TAG, "Maximum Wi-Fi connections: %d",
+            wifi_config.ap.max_connection);
 }

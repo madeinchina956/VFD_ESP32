@@ -1,9 +1,9 @@
-# Registers all source files used by the ESP32
 idf_component_register(
     SRCS
         "main.c"
         "wifi.c"
-        "uart_common.c"        
+        "session_http.c"
+        "uart_common.c"
         "tft_display.c"
         "tft_graphics.c"
         "tft_font.c"
