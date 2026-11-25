@@ -1,277 +1,509 @@
-// Used to convert JSON data
+import 'dart:async';
 import 'dart:convert';
-
-// Used to generate demo values
 import 'dart:math';
 
-// HTTP package for ESP32 communication
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-// VFD status model
 import '../models/vfd_status.dart';
+import 'session_access.dart';
 
-// Handles communication between the app and ESP32
-class Esp32Service {
-
-  // ESP32 IP address
+class Esp32Service extends ChangeNotifier {
   final String baseUrl;
-
-  // Enables demo mode for testing
   final bool demoMode;
+  final http.Client _client;
+  final DemoSessionAuthority _demoAuthority;
+  final Object _demoIdentity = Object();
 
-  // HTTP client used for network requests
-  final http.Client _client = http.Client();
+  static final _sharedDemo = DemoSessionAuthority();
 
-  // Stores the current demo VFD status
-  VfdStatus _demoStatus = VfdStatus.initial().copyWith(
-    connected: true,
-    dcLinkVoltage: 48.0,
-  );
+  final _timeout = const Duration(seconds: 2);
+  final _random = Random();
+
+  SessionAccess _access = SessionAccess.disconnected;
+
+  VfdStatus? _latest;
+  String? _token, _message;
+
+  bool _working = false, _disposed = false;
+  int _epoch = 0;
+
+  Future<VfdStatus>? _poll;
+  Timer? _freshness;
+
+  VfdStatus _demoStatus = _initialDemo();
 
   Esp32Service({
-    this.baseUrl = "http://192.168.4.1",
+    this.baseUrl = 'http://192.168.4.1',
     this.demoMode = true,
+    http.Client? client,
+    DemoSessionAuthority? demoAuthority,
+  }) : _client = client ?? http.Client(),
+       _demoAuthority = demoAuthority ?? _sharedDemo;
+
+  // SESSION PROPERTIES
+
+  SessionAccess get access => _access;
+  bool get working => _working;
+  String? get message => _message;
+  bool get demoRemote => _demoAuthority.remote;
+
+  bool get _demoOwns =>
+      _demoAuthority.stateFor(_demoIdentity) ==
+      SessionAccess.authorized;
+
+  VfdStatus? get latestStatus =>
+      _access == SessionAccess.authorized &&
+          !_working &&
+          !_disposed &&
+          (!demoMode || _demoOwns)
+      ? _latest : null;
+
+  bool get hasMeasurements =>
+      latestStatus?.connected == true;
+
+  bool get canUseDemoControls =>
+      demoMode && hasMeasurements;
+
+  static VfdStatus _initialDemo() =>
+      VfdStatus.initial().copyWith(
+        connected: true,
+        dcLinkVoltage: 48.0,
+      );
+
+  VfdStatus _unavailable() =>
+      VfdStatus.initial().copyWith(connected: false);
+
+  bool _current(int epoch) =>
+      !_disposed && epoch == _epoch;
+
+  void _publish() {
+    if (!_disposed) notifyListeners();
+  }
+
+  // CLEAR SESSION AND MEASUREMENTS
+
+  void _clear(SessionAccess state, [String? message]) {
+    _freshness?.cancel();
+    _latest = null;
+    _token = null;
+    _access = state;
+    _message = message;
+
+    if (demoMode) _demoStatus = _initialDemo();
+
+    _publish();
+  }
+
+  void invalidateAccess() {
+    if (_disposed) return;
+
+    _epoch++;
+    _working = false;
+
+    if (demoMode) _demoAuthority.release(_demoIdentity);
+
+    _clear(SessionAccess.disconnected);
+  }
+
+  void _accept(VfdStatus status) {
+    if (!status.connected) {
+      throw StateError('Disconnected status');
+    }
+
+    _latest = status;
+    _message = null;
+    _freshness?.cancel();
+
+    _freshness = Timer(const Duration(seconds: 4), () {
+      _epoch++;
+
+      if (demoMode) _demoAuthority.release(_demoIdentity);
+
+      _clear(
+        SessionAccess.disconnected,
+        'Measurement refresh expired.',
+      );
+    });
+
+    _publish();
+  }
+
+  // HTTP COMMUNICATION
+
+  Future<http.Response> _request(
+    String path, {
+    bool post = false,
+    String? token,
+  }) {
+    final uri = Uri.parse('$baseUrl$path');
+
+    final headers = {
+      'Accept': 'application/json',
+      'Cache-Control': 'no-store',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+
+    return (post
+        ? _client.post(uri, headers: headers)
+        : _client.get(uri, headers: headers)).timeout(_timeout);
+  }
+
+  Map<String, dynamic> _json(http.Response response) =>
+      jsonDecode(response.body) as Map<String, dynamic>;
+
+  SessionAccess _state(Map<String, dynamic> body) =>
+      switch (body['state']) {
+        'local' => SessionAccess.local,
+        'available' => SessionAccess.available,
+        'busy' => SessionAccess.busy,
+        'authorized' => SessionAccess.authorized,
+        _ => throw const FormatException('Unknown session state'),
+      };
+
+  SessionAccess _denied(int code) => switch (code) {
+    409 => SessionAccess.busy,
+    423 => SessionAccess.local,
+    _ => SessionAccess.disconnected,
+  };
+
+  // SIMULATED LOCAL/REMOTE SELECTION
+
+  void setDemoRemote(bool remote) {
+    if (!demoMode || _disposed || _working) return;
+
+    _epoch++;
+    _demoAuthority.setRemote(remote);
+
+    final state = _demoAuthority.stateFor(_demoIdentity);
+
+    if (state != SessionAccess.authorized) {
+      _clear(state);
+    } else {
+      _publish();
+    }
+  }
+
+  // SHARED SESSION ACTION HANDLER
+
+  Future<void> _sessionAction(
+    Future<void> Function(int) action,
+    String errorMessage,
+  ) async {
+    final epoch = ++_epoch;
+
+    _working = true;
+    _latest = null;
+    _freshness?.cancel();
+    _publish();
+
+    try {
+      if (_current(epoch)) await action(epoch);
+    } catch (_) {
+      if (_current(epoch)) {
+        _clear(SessionAccess.disconnected, errorMessage);
+      }
+    } finally {
+      if (_current(epoch)) {
+        _working = false;
+        _publish();
+      }
+    }
+  }
+
+  // REQUEST ACCESS
+
+  Future<void> requestAccess() async {
+if (_disposed ||
+    _working ||
+    _access != SessionAccess.available) {
+  return;
+}
+    await _sessionAction((epoch) async {
+      if (demoMode) {
+        _access = _demoAuthority.acquire(_demoIdentity);
+      } else {
+        final response = await _request(
+          '/api/session/acquire',
+          post: true,
+        );
+
+        if (!_current(epoch)) return;
+
+        if (response.statusCode == 409 ||
+            response.statusCode == 423) {
+          _clear(_denied(response.statusCode));
+          return;
+        }
+
+        if (response.statusCode != 200) {
+          throw StateError('Access denied');
+        }
+
+        final body = _json(response);
+        final token = body['token'];
+
+        if (_state(body) != SessionAccess.authorized ||
+            token is! String ||
+            token.isEmpty) {
+          throw const FormatException('Invalid session token');
+        }
+
+        _token = token;
+        _access = SessionAccess.authorized;
+      }
+
+      _message = null;
+    }, 'Could not establish session.');
+  }
+
+  // RELEASE ACCESS
+
+  Future<void> releaseAccess() async {
+if (_disposed ||
+    _working ||
+    _access != SessionAccess.authorized) {
+  return;
+}
+    final token = _token;
+
+    await _sessionAction((epoch) async {
+      _clear(SessionAccess.disconnected);
+
+      if (demoMode) {
+        _demoAuthority.release(_demoIdentity);
+        _access = _demoAuthority.stateFor(_demoIdentity);
+      } else if (token != null && _current(epoch)) {
+        final response = await _request(
+          '/api/session/release',
+          post: true,
+          token: token,
+        );
+
+        if (!_current(epoch)) return;
+
+        if (response.statusCode != 200 &&
+            response.statusCode != 204) {
+          throw StateError('Release not confirmed');
+        }
+      }
+    }, 'Release unconfirmed; server lease must expire.');
+  }
+
+  // STATUS POLLING
+
+  Future<VfdStatus> getStatus() {
+    if (_disposed || _working) {
+      return Future.value(_unavailable());
+    }
+
+    return _poll ??=
+        _readStatus(_epoch).whenComplete(() => _poll = null);
+  }
+
+  Future<VfdStatus> _readStatus(int epoch) async {
+    try {
+      if (demoMode) {
+        final state = _demoAuthority.stateFor(_demoIdentity);
+
+        if (state != SessionAccess.authorized ||
+            !_demoAuthority.renew(_demoIdentity)) {
+          _clear(state);
+          return _unavailable();
+        }
+
+        _access = state;
+        _accept(_simulate());
+
+        return _latest ?? _unavailable();
+      }
+
+      final token = _token;
+
+      final authorized =
+          token != null &&
+          _access == SessionAccess.authorized;
+
+      final response = await _request(
+        authorized ? '/api/status' : '/api/session',
+        token: authorized ? token : null,
+      );
+
+      if (!_current(epoch)) return _unavailable();
+
+      if (authorized &&
+          [401, 403, 409, 423].contains(response.statusCode)) {
+        _clear(
+          _denied(response.statusCode),
+          'Session no longer authorized.',
+        );
+
+        return _unavailable();
+      }
+
+      if (response.statusCode != 200) {
+        throw StateError('Request failed');
+      }
+
+      final body = _json(response);
+
+      if (!authorized) {
+        final state = _state(body);
+
+        if (state == SessionAccess.authorized) {
+          throw StateError('Unexpected authorization');
+        }
+
+        _clear(state);
+        return _unavailable();
+      }
+
+      _accept(_validatedStatus(body));
+
+      return _latest ?? _unavailable();
+
+    } catch (_) {
+      if (_current(epoch)) {
+        if (demoMode) {
+          _demoAuthority.release(_demoIdentity);
+        }
+
+        _clear(
+          SessionAccess.disconnected,
+          'Session or connection lost.',
+        );
+      }
+
+      return _unavailable();
+    }
+  }
+
+  // VALIDATE RECEIVED MEASUREMENTS
+
+  VfdStatus _validatedStatus(Map<String, dynamic> body) {
+    if (body['session_authorized'] != true ||
+        body['running'] is! bool ||
+        body['fault_active'] is! bool ||
+        body['fault_code'] is! int ||
+        body['fault_description'] is! String ||
+        !['forward', 'reverse'].contains(body['direction']) ||
+        !['speed', 'manual'].contains(body['mode'])) {
+      throw const FormatException('Invalid authorized snapshot');
+    }
+
+    for (final key in [
+      'commanded_rpm',
+      'actual_rpm',
+      'motor_current',
+      'dc_link_voltage',
+      'estimated_torque',
+    ]) {
+      final value = body[key];
+
+      if (value is! num || !value.isFinite) {
+        throw FormatException('Invalid $key');
+      }
+    }
+
+    return VfdStatus.fromJson(body);
+  }
+
+  // SHARED SIMULATION CONTROL HANDLER
+
+  Future<void> _updateDemo(
+    VfdStatus Function(VfdStatus) update,
+  ) async {
+    if (!demoMode) {
+      throw UnsupportedError('Live motor control is disabled.');
+    }
+
+    if (!canUseDemoControls) {
+      throw StateError('Demo session not authorized');
+    }
+
+    _demoStatus = update(_demoStatus);
+  }
+
+  // SIMULATED MOTOR CONTROLS
+
+  Future<void> requestStart() => _updateDemo((s) {
+    if (s.faultActive) {
+      throw StateError('Cannot start while a fault is active.');
+    }
+
+    return s.copyWith(running: true);
   });
 
-  // Gets the current VFD status
-  Future<VfdStatus> getStatus() async {
-
-    // Uses simulated data in demo mode
-    if (demoMode) {
-      return _getDemoStatus();
-    }
-
-    // ESP32 status endpoint
-    final uri = Uri.parse(
-      "$baseUrl/api/status",
-    );
-
-    // Sends GET request to the ESP32
-    final response = await _client
-        .get(uri)
-        .timeout(
-          const Duration(seconds: 2),
-        );
-
-    // Checks for a successful response
-    if (response.statusCode != 200) {
-      throw Exception(
-        "ESP32 returned status code ${response.statusCode}",
-      );
-    }
-
-    // Converts JSON response into Dart data
-    final Map<String, dynamic> json =
-        jsonDecode(response.body)
-            as Map<String, dynamic>;
-
-    // Converts JSON data into a VfdStatus object
-    return VfdStatus.fromJson(json);
-  }
-
-  // --------------------------------------------------
-  // DEMO CONTROLS
-  // --------------------------------------------------
-
-  // Starts the motor in demo mode
-  Future<void> requestStart() async {
-
-    if (demoMode) {
-
-      // Prevents starting while a fault is active
-      if (_demoStatus.faultActive) {
-        throw Exception(
-          "Cannot start while a fault is active.",
-        );
-      }
-
-      _demoStatus = _demoStatus.copyWith(
-        running: true,
-      );
-
-      return;
-    }
-
-    // Live control will be added later
-    throw UnsupportedError(
-      "Live Start control is not enabled yet. "
-      "Connect this only after your ESP32/dsPIC command protocol "
-      "and safety interlocks are finalized.",
-    );
-  }
-
-  // Stops the motor in demo mode
-  Future<void> requestStop() async {
-
-    if (demoMode) {
-      _demoStatus = _demoStatus.copyWith(
+  Future<void> requestStop() =>
+      _updateDemo((s) => s.copyWith(
         running: false,
         actualRpm: 0,
-      );
+      ));
 
-      return;
+  Future<void> setSpeed(double rpm) =>
+      _updateDemo((s) => s.copyWith(commandedRpm: rpm));
+
+  Future<void> setDirection(String direction) async {
+    if (!['forward', 'reverse'].contains(direction)) {
+      throw ArgumentError('Direction must be forward or reverse.');
     }
 
-    // Live control will be added later
-    throw UnsupportedError(
-      "Live Stop control has not been connected to the hardware API yet.",
-    );
+    await _updateDemo((s) => s.copyWith(direction: direction));
   }
 
-  // Changes the commanded motor speed
-  Future<void> setSpeed(double rpm) async {
+  Future<void> setOperatingMode(String mode) =>
+      _updateDemo((s) => s.copyWith(operatingMode: mode));
 
-    if (demoMode) {
-      _demoStatus = _demoStatus.copyWith(
-        commandedRpm: rpm,
-      );
-
-      return;
-    }
-
-    // Live speed control will be added later
-    throw UnsupportedError(
-      "Live speed commands have not been enabled yet.",
-    );
-  }
-
-  // Changes the motor direction
-  Future<void> setDirection(
-    String direction,
-  ) async {
-
-    // Checks for a valid direction
-    if (direction != "forward" &&
-        direction != "reverse") {
-      throw ArgumentError(
-        "Direction must be 'forward' or 'reverse'.",
-      );
-    }
-
-    if (demoMode) {
-      _demoStatus = _demoStatus.copyWith(
-        direction: direction,
-      );
-
-      return;
-    }
-
-    // Live direction control will be added later
-    throw UnsupportedError(
-      "Live direction commands have not been enabled yet.",
-    );
-  }
-
-  // Resets the active fault in demo mode
-  Future<void> resetFault() async {
-
-    if (demoMode) {
-      _demoStatus = _demoStatus.copyWith(
+  Future<void> resetFault() =>
+      _updateDemo((s) => s.copyWith(
         faultActive: false,
         faultCode: 0,
-        faultDescription: "No fault",
-      );
+        faultDescription: 'No fault',
+      ));
 
-      return;
-    }
+  // SIMULATED MEASUREMENTS
 
-    // Live fault reset will be added later
-    throw UnsupportedError(
-      "Live fault reset has not been enabled yet.",
-    );
-  }
+  VfdStatus _simulate() {
+    final s = _demoStatus;
 
-  // Changes the operating mode
-  Future<void> setOperatingMode(
-    String mode,
-  ) async {
+    double rpm = s.running
+        ? max(
+            0.0,
+            s.actualRpm +
+                (s.commandedRpm - s.actualRpm) * 0.25 +
+                _random.nextDouble() * 4 - 2,
+          )
+        : (s.actualRpm * 0.5 < 1 ? 0.0 : s.actualRpm * 0.5);
 
-    if (demoMode) {
-      _demoStatus = _demoStatus.copyWith(
-        operatingMode: mode,
-      );
-
-      return;
-    }
-
-    // Live mode control will be added later
-    throw UnsupportedError(
-      "Live operating-mode commands have not been enabled yet.",
-    );
-  }
-
-  // --------------------------------------------------
-  // DEMO SIMULATION
-  // --------------------------------------------------
-
-  // Creates simulated VFD measurements
-  VfdStatus _getDemoStatus() {
-
-    final random = Random();
-
-    double actualRpm =
-        _demoStatus.actualRpm;
-
-    // Simulates RPM while the motor is running
-    if (_demoStatus.running) {
-
-      final error =
-          _demoStatus.commandedRpm -
-          _demoStatus.actualRpm;
-
-      // Moves actual RPM toward commanded RPM
-      actualRpm += error * 0.25;
-
-      // Adds a small amount of RPM variation
-      actualRpm +=
-          random.nextDouble() * 4 - 2;
-
-      if (actualRpm < 0) {
-        actualRpm = 0;
-      }
-
-    } else {
-
-      // Reduces RPM when the motor is stopped
-      actualRpm *= 0.5;
-
-      if (actualRpm < 1) {
-        actualRpm = 0;
-      }
-    }
-
-    // Simulated motor current
-    final current =
-        _demoStatus.running
-            ? 1.5 +
-                random.nextDouble() * 0.5
-            : 0.0;
-
-    // Simulated estimated torque
-    final torque =
-        _demoStatus.running
-            ? 1.0 +
-                random.nextDouble() * 0.3
-            : 0.0;
-
-    // Simulated DC-link voltage
-    final voltage =
-        47.5 + random.nextDouble();
-
-    // Updates the demo VFD status
-    _demoStatus = _demoStatus.copyWith(
+    _demoStatus = s.copyWith(
       connected: true,
-      actualRpm: actualRpm,
-      motorCurrent: current,
-      dcLinkVoltage: voltage,
-      estimatedTorque: torque,
+      actualRpm: rpm,
+      motorCurrent: s.running
+          ? 1.5 + _random.nextDouble() * 0.5 : 0.0,
+      estimatedTorque: s.running
+          ? 1.0 + _random.nextDouble() * 0.3 : 0.0,
+      dcLinkVoltage: 47.5 + _random.nextDouble(),
     );
 
     return _demoStatus;
   }
 
-  // Closes the HTTP client
+  // CLEANUP
+
+  @override
   void dispose() {
+    _disposed = true;
+    _epoch++;
+    _freshness?.cancel();
+
+    if (demoMode) {
+      _demoAuthority.release(_demoIdentity);
+    }
+
+    _token = null;
+    _latest = null;
     _client.close();
+
+    super.dispose();
   }
 }

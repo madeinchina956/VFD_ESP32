@@ -1,47 +1,64 @@
-// Flutter Material Design package
 import 'package:flutter/material.dart';
 
-// VFD status model
 import '../models/vfd_status.dart';
+import '../services/esp32_service.dart';
 
-// Shows Wi-Fi connection status
+import '../widgets/session_notice.dart';
 import '../widgets/connection_status.dart';
-
-// Shows active fault information
 import '../widgets/fault_banner.dart';
-
-// Reusable card for measurements
 import '../widgets/measurement_card.dart';
 
-// Dashboard screen for monitoring VFD operation
 class DashboardScreen extends StatelessWidget {
+  final Esp32Service service;
 
-  // Current VFD status
-  final VfdStatus status;
-
-  // Opens fault details when a fault is pressed
   final VoidCallback onFaultPressed;
+
+  VfdStatus get status =>
+      service.latestStatus ?? VfdStatus.initial();
 
   const DashboardScreen({
     super.key,
-    required this.status,
+    required this.service,
     required this.onFaultPressed,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      ListenableBuilder(
+        listenable: service,
+
+        builder: (context, _) {
+          // Hide measurements if unauthorized.
+
+          if (!service.hasMeasurements) {
+            return SessionNotice(
+              service: service,
+              title: 'VFD Dashboard',
+            );
+          }
+
+          return _buildAuthorized(context);
+        },
+      );
+
+  Widget _buildAuthorized(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.all(16),
 
       children: [
-
         // Dashboard title and connection status
+
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisAlignment:
+              MainAxisAlignment.spaceBetween,
+
           children: [
             Text(
-              "VFD Dashboard",
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              'VFD Dashboard',
+              style: Theme.of(context)
+                  .textTheme
+                  .headlineSmall
+                  ?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
             ),
@@ -54,7 +71,16 @@ class DashboardScreen extends StatelessWidget {
 
         const SizedBox(height: 16),
 
-        // Shows fault banner only if a fault is active
+        Text(
+          service.demoMode
+              ? 'SIMULATED MEASUREMENTS'
+              : 'AUTHORIZED READ-ONLY MONITORING',
+        ),
+
+        const SizedBox(height: 8),
+
+        // Active fault notification
+
         if (status.faultActive) ...[
           FaultBanner(
             faultCode: status.faultCode,
@@ -66,6 +92,7 @@ class DashboardScreen extends StatelessWidget {
         ],
 
         // Actual and commanded motor speed
+
         Card(
           child: Padding(
             padding: const EdgeInsets.symmetric(
@@ -75,9 +102,8 @@ class DashboardScreen extends StatelessWidget {
 
             child: Column(
               children: [
-
                 const Text(
-                  "ACTUAL MOTOR SPEED",
+                  'ACTUAL MOTOR SPEED',
                   style: TextStyle(
                     letterSpacing: 2,
                   ),
@@ -94,16 +120,15 @@ class DashboardScreen extends StatelessWidget {
                 ),
 
                 const Text(
-                  "RPM",
-                  style: TextStyle(
-                    fontSize: 18,
-                  ),
+                  'RPM',
+                  style: TextStyle(fontSize: 18),
                 ),
 
                 const SizedBox(height: 12),
 
                 Text(
-                  "Commanded: ${status.commandedRpm.round()} RPM",
+                  'Commanded: '
+                  '${status.commandedRpm.round()} RPM',
                 ),
               ],
             ),
@@ -113,13 +138,15 @@ class DashboardScreen extends StatelessWidget {
         const SizedBox(height: 16),
 
         // Motor current and DC-link voltage
+
         Row(
           children: [
             Expanded(
               child: MeasurementCard(
-                title: "Motor Current",
-                value: status.motorCurrent.toStringAsFixed(2),
-                unit: "A",
+                title: 'Motor Current',
+                value: status.motorCurrent
+                    .toStringAsFixed(2),
+                unit: 'A',
                 icon: Icons.electric_bolt,
               ),
             ),
@@ -128,9 +155,10 @@ class DashboardScreen extends StatelessWidget {
 
             Expanded(
               child: MeasurementCard(
-                title: "DC Link",
-                value: status.dcLinkVoltage.toStringAsFixed(1),
-                unit: "V",
+                title: 'DC Link',
+                value: status.dcLinkVoltage
+                    .toStringAsFixed(1),
+                unit: 'V',
                 icon: Icons.battery_charging_full,
               ),
             ),
@@ -139,14 +167,16 @@ class DashboardScreen extends StatelessWidget {
 
         const SizedBox(height: 10),
 
-        // Estimated torque and motor direction
+        // Estimated torque and direction
+
         Row(
           children: [
             Expanded(
               child: MeasurementCard(
-                title: "Torque",
-                value: status.estimatedTorque.toStringAsFixed(2),
-                unit: "N·m",
+                title: 'Torque',
+                value: status.estimatedTorque
+                    .toStringAsFixed(2),
+                unit: 'N·m',
                 icon: Icons.settings,
               ),
             ),
@@ -155,9 +185,9 @@ class DashboardScreen extends StatelessWidget {
 
             Expanded(
               child: MeasurementCard(
-                title: "Direction",
+                title: 'Direction',
                 value: status.direction.toUpperCase(),
-                unit: "",
+                unit: '',
                 icon: Icons.sync_alt,
               ),
             ),
@@ -166,53 +196,44 @@ class DashboardScreen extends StatelessWidget {
 
         const SizedBox(height: 16),
 
-        // System status card
         _buildStatusCard(context),
       ],
     );
   }
 
-  // Builds the system status card
   Widget _buildStatusCard(BuildContext context) {
     String text;
     IconData icon;
     Color color;
 
-    // Sets status text, icon, and color
     if (!status.connected) {
-      text = "DISCONNECTED";
+      text = 'DISCONNECTED';
       icon = Icons.wifi_off;
       color = Colors.red;
     } else if (status.faultActive) {
-      text = "FAULT";
+      text = 'FAULT';
       icon = Icons.warning;
       color = Colors.red;
     } else if (status.running) {
-      text = "RUNNING";
+      text = 'RUNNING';
       icon = Icons.play_arrow;
       color = Colors.green;
     } else {
-      text = "READY";
+      text = 'READY';
       icon = Icons.check_circle;
       color = Colors.blue;
     }
 
     return Card(
       child: ListTile(
-
-        // Status icon
         leading: Icon(
           icon,
           color: color,
           size: 32,
         ),
 
-        // Status label
-        title: const Text(
-          "System Status",
-        ),
+        title: const Text('System Status'),
 
-        // Current system state
         trailing: Text(
           text,
           style: TextStyle(

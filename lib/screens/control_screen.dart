@@ -1,44 +1,40 @@
-//Flutter Material Design package
-//Provides widgets such as Text, Card, Row, and Column
 import 'package:flutter/material.dart';
 
-//VFD status model
 import '../models/vfd_status.dart';
+import '../services/esp32_service.dart';
 
-//Reusable widget for Start and Stop buttons
+import '../widgets/session_notice.dart';
 import '../widgets/motor_controls.dart';
-
-//Reusable widget for adjusting commanded motor speed
 import '../widgets/speed_control.dart';
 
-//Control screen for motor operation
-//Keeps the UI separate from the communication logic
 class ControlScreen extends StatelessWidget {
+  final Esp32Service service;
 
-  //Current VFD status
-  final VfdStatus status;
-
-  //RPM selected by the user
   final double requestedRpm;
 
-  //Enables or disables motor controls
   final bool controlsEnabled;
 
-  //Speed control callbacks
   final ValueChanged<double> onSpeedChanged;
   final ValueChanged<double> onSpeedSubmitted;
 
-  //Direction and mode callbacks
   final ValueChanged<String> onDirectionChanged;
   final ValueChanged<String> onModeChanged;
 
-  //Start and Stop callbacks
   final VoidCallback onStart;
   final VoidCallback onStop;
 
+  VfdStatus get status =>
+      service.latestStatus ?? VfdStatus.initial();
+
+  bool get _enabled =>
+      controlsEnabled && service.canUseDemoControls;
+
+  bool get _settingsEnabled =>
+      _enabled && !status.faultActive;
+
   const ControlScreen({
     super.key,
-    required this.status,
+    required this.service,
     required this.requestedRpm,
     required this.controlsEnabled,
     required this.onSpeedChanged,
@@ -50,55 +46,70 @@ class ControlScreen extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      ListenableBuilder(
+        listenable: service,
+
+        builder: (context, _) {
+          if (!service.hasMeasurements) {
+            return SessionNotice(
+              service: service,
+              title: 'Motor Control',
+            );
+          }
+
+          return _buildAuthorized(context);
+        },
+      );
+
+  Widget _buildAuthorized(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.all(16),
-      children: [
 
-        //Screen title
+      children: [
         Text(
-          "Motor Control",
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+          'Motor Control',
+          style: Theme.of(context)
+              .textTheme
+              .headlineSmall
+              ?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
         ),
 
         const SizedBox(height: 6),
 
-        //Shows whether controls are available
         Text(
-          controlsEnabled
-              ? "Adjust the operating command below."
-              : "Controls are currently unavailable.",
+          _enabled
+              ? 'SIMULATION ONLY — adjust the demo command below.'
+              : 'Controls are unavailable or busy. '
+                'Live operation is not enabled in this build.',
         ),
 
         const SizedBox(height: 16),
 
-        //Motor speed control
         SpeedControl(
           rpm: requestedRpm,
           maximumRpm: 3000,
-          enabled: controlsEnabled,
+          enabled: _settingsEnabled,
           onChanged: onSpeedChanged,
           onChangeEnd: onSpeedSubmitted,
         ),
 
         const SizedBox(height: 16),
 
-        //Direction control
         _buildDirectionControl(),
 
         const SizedBox(height: 16),
 
-        //Operating mode control
         _buildModeControl(),
 
         const SizedBox(height: 16),
 
-        //Start and Stop buttons
         MotorControls(
           running: status.running,
-          enabled: controlsEnabled,
+          enabled: _enabled,
+          startAllowed: !status.faultActive,
           onStart: onStart,
           onStop: onStop,
         ),
@@ -106,17 +117,20 @@ class ControlScreen extends StatelessWidget {
     );
   }
 
-  //Builds Forward and Reverse controls
+  // Direction selector
+
   Widget _buildDirectionControl() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
 
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.stretch,
+
+          children: [
             const Text(
-              "Direction",
+              'Direction',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -127,27 +141,32 @@ class ControlScreen extends StatelessWidget {
 
             Row(
               children: [
-
-                // Forward direction
                 Expanded(
                   child: ChoiceChip(
-                    label: const Text("Forward"),
-                    selected: status.direction == "forward",
-                    onSelected: controlsEnabled
-                        ? (_) => onDirectionChanged("forward")
+                    label: const Text('Forward'),
+
+                    selected:
+                        status.direction == 'forward',
+
+                    onSelected: _settingsEnabled
+                        ? (_) =>
+                            onDirectionChanged('forward')
                         : null,
                   ),
                 ),
 
                 const SizedBox(width: 10),
 
-                // Reverse direction
                 Expanded(
                   child: ChoiceChip(
-                    label: const Text("Reverse"),
-                    selected: status.direction == "reverse",
-                    onSelected: controlsEnabled
-                        ? (_) => onDirectionChanged("reverse")
+                    label: const Text('Reverse'),
+
+                    selected:
+                        status.direction == 'reverse',
+
+                    onSelected: _settingsEnabled
+                        ? (_) =>
+                            onDirectionChanged('reverse')
                         : null,
                   ),
                 ),
@@ -159,17 +178,20 @@ class ControlScreen extends StatelessWidget {
     );
   }
 
-  //Builds the operating mode dropdown
+  // Operating mode selector
+
   Widget _buildModeControl() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
 
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+
+          children: [
             const Text(
-              "Operating Mode",
+              'Operating Mode',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -178,25 +200,32 @@ class ControlScreen extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-            // Operating mode selection
             DropdownButtonFormField<String>(
-              initialValue: status.operatingMode,
+              key: ValueKey(status.operatingMode),
+
+              initialValue:
+                  const ['speed', 'manual']
+                          .contains(status.operatingMode)
+                      ? status.operatingMode
+                      : null,
+
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
               ),
-              items: const [
 
+              items: const [
                 DropdownMenuItem(
-                  value: "speed",
-                  child: Text("Speed Control"),
+                  value: 'speed',
+                  child: Text('Speed Control'),
                 ),
 
                 DropdownMenuItem(
-                  value: "manual",
-                  child: Text("Manual"),
+                  value: 'manual',
+                  child: Text('Manual'),
                 ),
               ],
-              onChanged: controlsEnabled
+
+              onChanged: _settingsEnabled
                   ? (value) {
                       if (value != null) {
                         onModeChanged(value);

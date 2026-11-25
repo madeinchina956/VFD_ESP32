@@ -1,51 +1,85 @@
-// Flutter Material Design package
 import 'package:flutter/material.dart';
 
-// Fault information model
 import '../models/vfd_fault.dart';
-
-// Current VFD status model
 import '../models/vfd_status.dart';
 
-// Displays detailed information about the active fault
+import '../services/esp32_service.dart';
+import '../widgets/session_notice.dart';
+
 class FaultPage extends StatelessWidget {
+  final Esp32Service service;
 
-  // Current VFD status
-  final VfdStatus status;
-
-  // Callback used to request a fault reset
   final Future<void> Function() onReset;
+
+  VfdStatus get status =>
+      service.latestStatus ?? VfdStatus.initial();
 
   const FaultPage({
     super.key,
-    required this.status,
+    required this.service,
     required this.onReset,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      ListenableBuilder(
+        listenable: service,
 
-    // Gets the full fault information from the fault code
+        builder: (context, _) {
+          if (!service.hasMeasurements) {
+            return Scaffold(
+              appBar: AppBar(
+                title: const Text(
+                  'Fault Information',
+                ),
+              ),
+
+              body: SessionNotice(
+                service: service,
+                title: 'Fault Information',
+              ),
+            );
+          }
+
+          return _buildAuthorized(context);
+        },
+      );
+
+  Widget _buildAuthorized(BuildContext context) {
+    if (!status.faultActive) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Fault Information'),
+        ),
+
+        body: const Center(
+          child: Text(
+            'No active fault in the current session.',
+          ),
+        ),
+      );
+    }
+
     final fault = VfdFault.fromCode(
       status.faultCode,
-      controllerDescription: status.faultDescription,
+
+      controllerDescription:
+          status.faultDescription,
     );
 
     return Scaffold(
-
-      // Page title
       appBar: AppBar(
-        title: const Text("Fault Information"),
+        title: const Text('Fault Information'),
       ),
 
       body: Padding(
         padding: const EdgeInsets.all(20),
 
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+          crossAxisAlignment:
+              CrossAxisAlignment.stretch,
 
-            // Warning icon
+          children: [
             const Icon(
               Icons.warning_amber_rounded,
               size: 80,
@@ -54,10 +88,10 @@ class FaultPage extends StatelessWidget {
 
             const SizedBox(height: 20),
 
-            // Fault code
             Text(
-              "FAULT ${fault.code}",
+              'FAULT ${fault.code}',
               textAlign: TextAlign.center,
+
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -66,10 +100,10 @@ class FaultPage extends StatelessWidget {
 
             const SizedBox(height: 6),
 
-            // Fault name
             Text(
               fault.name,
               textAlign: TextAlign.center,
+
               style: const TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
@@ -78,9 +112,8 @@ class FaultPage extends StatelessWidget {
 
             const SizedBox(height: 30),
 
-            // Fault description label
             const Text(
-              "Description",
+              'Description',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
               ),
@@ -88,14 +121,12 @@ class FaultPage extends StatelessWidget {
 
             const SizedBox(height: 6),
 
-            // Fault description
             Text(fault.description),
 
             const SizedBox(height: 25),
 
-            // Recommended action label
             const Text(
-              "Recommended Action",
+              'Recommended Action',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
               ),
@@ -103,41 +134,44 @@ class FaultPage extends StatelessWidget {
 
             const SizedBox(height: 6),
 
-            // Recommended action for the user
             Text(fault.action),
 
             const Spacer(),
 
-            // Fault reset button
+            // Simulation-only fault reset.
+
             ElevatedButton.icon(
-              onPressed: () async {
-                try {
+              onPressed: service.canUseDemoControls
+                  ? () async {
+                      try {
+                        if (!service.canUseDemoControls) {
+                          return;
+                        }
 
-                  // Sends the fault reset request
-                  await onReset();
+                        await onReset();
 
-                  // Returns to the previous screen after reset
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                  }
-
-                } catch (e) {
-
-                  // Shows an error message if reset fails
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(e.toString()),
-                      ),
-                    );
-                  }
-                }
-              },
+                        if (context.mounted) {
+                          Navigator.pop(context);
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context)
+                              .showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                e.toString(),
+                              ),
+                            ),
+                          );
+                        }
+                      }
+                    }
+                  : null,
 
               icon: const Icon(Icons.restart_alt),
 
               label: const Text(
-                "REQUEST FAULT RESET",
+                'REQUEST FAULT RESET',
               ),
             ),
           ],
