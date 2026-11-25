@@ -91,7 +91,7 @@ class SettingsScreen extends StatelessWidget {
                 ),
 
                 trailing: Text(
-                  demoMode ? 'Demo' : 'Live',
+                  demoMode ? 'Local Demo' : 'Network demo',
                 ),
               ),
             ],
@@ -157,9 +157,9 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ] else
                   const Text(
-                    'Source selection belongs to the '
-                    'local controller. This app supports '
-                    'authorized monitoring only.',
+                    'Select LOCAL or REMOTE on the ESP32 TFT. '
+                    'Network demo: authorized simulated measurements '
+                    'only. Motor commands are disabled.',
                   ),
 
                 const SizedBox(height: 12),

@@ -74,7 +74,7 @@ class DashboardScreen extends StatelessWidget {
         Text(
           service.demoMode
               ? 'SIMULATED MEASUREMENTS'
-              : 'AUTHORIZED READ-ONLY MONITORING',
+              : 'ESP32 SIMULATED MEASUREMENTS - READ ONLY',
         ),
 
         const SizedBox(height: 8),
@@ -219,7 +219,7 @@ class DashboardScreen extends StatelessWidget {
       icon = Icons.play_arrow;
       color = Colors.green;
     } else {
-      text = 'READY';
+      text = 'SIMULATED IDLE';
       icon = Icons.check_circle;
       color = Colors.blue;
     }

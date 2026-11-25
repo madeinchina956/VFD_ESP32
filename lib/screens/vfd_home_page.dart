@@ -27,7 +27,7 @@ class _VfdHomePageState extends State<VfdHomePage>
       'http://192.168.4.1';
 
   // Keep simulation enabled.
-  static const bool demoMode = true;
+  static const bool demoMode = false;
 
   late final Esp32Service _service;
 

@@ -379,34 +379,36 @@ if (_disposed ||
   }
 
   // VALIDATE RECEIVED MEASUREMENTS
+// VALIDATE RECEIVED MEASUREMENTS
 
-  VfdStatus _validatedStatus(Map<String, dynamic> body) {
-    if (body['session_authorized'] != true ||
-        body['running'] is! bool ||
-        body['fault_active'] is! bool ||
-        body['fault_code'] is! int ||
-        body['fault_description'] is! String ||
-        !['forward', 'reverse'].contains(body['direction']) ||
-        !['speed', 'manual'].contains(body['mode'])) {
-      throw const FormatException('Invalid authorized snapshot');
-    }
-
-    for (final key in [
-      'commanded_rpm',
-      'actual_rpm',
-      'motor_current',
-      'dc_link_voltage',
-      'estimated_torque',
-    ]) {
-      final value = body[key];
-
-      if (value is! num || !value.isFinite) {
-        throw FormatException('Invalid $key');
-      }
-    }
-
-    return VfdStatus.fromJson(body);
+VfdStatus _validatedStatus(Map<String, dynamic> body) {
+  if (body['simulated'] != true ||
+      body['session_authorized'] != true ||
+      body['running'] is! bool ||
+      body['fault_active'] is! bool ||
+      body['fault_code'] is! int ||
+      body['fault_description'] is! String ||
+      !['forward', 'reverse'].contains(body['direction']) ||
+      !['speed', 'manual'].contains(body['mode'])) {
+    throw const FormatException('Invalid authorized snapshot');
   }
+
+  for (final key in [
+    'commanded_rpm',
+    'actual_rpm',
+    'motor_current',
+    'dc_link_voltage',
+    'estimated_torque',
+  ]) {
+    final value = body[key];
+
+    if (value is! num || !value.isFinite) {
+      throw FormatException('Invalid $key');
+    }
+  }
+
+  return VfdStatus.fromJson(body);
+}
 
   // SHARED SIMULATION CONTROL HANDLER
 

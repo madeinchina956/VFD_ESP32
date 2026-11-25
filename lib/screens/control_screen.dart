@@ -82,8 +82,8 @@ class ControlScreen extends StatelessWidget {
         Text(
           _enabled
               ? 'SIMULATION ONLY — adjust the demo command below.'
-              : 'Controls are unavailable or busy. '
-                'Live operation is not enabled in this build.',
+              : 'Controls are disabled in the network demo. '
+                'Measurements are simulated and read-only.',
         ),
 
         const SizedBox(height: 16),
